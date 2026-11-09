@@ -1,176 +1,55 @@
-local W=game:GetService("Workspace")
-local AS=game:GetService("AssetService")
-local IS=game:GetService("InsertService")
-local S=getgenv().FEC
-local A,V,N=CFrame.Angles,Vector3.new,CFrame.new
+local P,W,U,AS,IS=game:GetService("Players"),game:GetService("Workspace"),game:GetService("UserInputService"),game:GetService("AssetService"),game:GetService("InsertService")
+local L,S=P.LocalPlayer,getgenv().FEC
 
-S.animIds={
- Climb="rbxassetid://507765644",
- SpiderRun="rbxassetid://1083182000",
- SpiderIdle="rbxassetid://1083445855",
- ClimbOver="rbxassetid://656117878",
- Ceil="rbxassetid://1083222527"
-}
-
-function S.stopTracks()
- for _,tr in pairs(S.tracks)do if tr and tr.IsPlaying then tr:Stop(0.12)end end
- S.tracks={}
-end
+S.animIds={Climb="rbxassetid://507765644",SpiderRun="rbxassetid://1083182000",SpiderIdle="rbxassetid://1083445855",ClimbOver="rbxassetid://656117878",Ceil="rbxassetid://1083222527"}
+function S.stopTracks()for _,tr in pairs(S.tracks)do if tr and tr.IsPlaying then tr:Stop(0.12)end end S.tracks={}end
 
 function S.unpackUGC()
- pcall(function()
-  local info=AS:GetBundleDetailsAsync(245332605334281)
-  for _,it in ipairs(info.Items or{})do
-   if it.Type=="Asset"then
-    local ok,mdl=pcall(function()return IS:LoadAsset(it.Id)end)
-    if ok and mdl then
-     for _,d in ipairs(mdl:GetDescendants())do
-      if d:IsA("Animation")and d.AnimationId~=""then
-       local pn=string.lower(d.Parent.Name)
-       if string.find(pn,"run")or string.find(pn,"walk")then S.animIds.SpiderRun=d.AnimationId
-       elseif string.find(pn,"idle")then S.animIds.SpiderIdle=d.AnimationId
-       elseif string.find(pn,"climb")then S.animIds.Climb=d.AnimationId end
-      end
-     end
-    end
-   end
-  end
- end)
- pcall(function()
-  local ok,mdl=pcall(function()return IS:LoadAsset(117220698427723)end)
-  if ok and mdl then
-   for _,d in ipairs(mdl:GetDescendants())do
-    if d:IsA("Animation")and d.AnimationId~=""then S.animIds.ClimbOver=d.AnimationId break end
-   end
-  end
- end)
+ pcall(function()for _,it in ipairs(AS:GetBundleDetailsAsync(245332605334281).Items or{})do if it.Type=="Asset"then local ok,mdl=pcall(function()return IS:LoadAsset(it.Id)end)if ok and mdl then for _,d in ipairs(mdl:GetDescendants())do if d:IsA("Animation")and d.AnimationId~=""then local pn=string.lower(d.Parent.Name)if string.find(pn,"run")or string.find(pn,"walk")then S.animIds.SpiderRun=d.AnimationId elseif string.find(pn,"idle")then S.animIds.SpiderIdle=d.AnimationId elseif string.find(pn,"climb")then S.animIds.Climb=d.AnimationId end end end end end end end)
+ pcall(function()local ok,mdl=pcall(function()return IS:LoadAsset(117220698427723)end)if ok and mdl then for _,d in ipairs(mdl:GetDescendants())do if d:IsA("Animation")and d.AnimationId~=""then S.animIds.ClimbOver=d.AnimationId break end end end end)
 end
 
 function S.loadTracks(hum)
- S.stopTracks()
- local anim=hum:FindFirstChildOfClass("Animator")if not anim then return end
- task.spawn(function()
-  S.unpackUGC()
-  for key,aid in pairs(S.animIds)do
-   local a=Instance.new("Animation")a.AnimationId=aid
-   local ok,tr=pcall(function()return anim:LoadAnimation(a)end)
-   if ok and tr then tr.Priority=Enum.AnimationPriority.Action tr.Looped=true S.tracks[key]=tr end
-  end
- end)
+ S.stopTracks()local anim=hum:FindFirstChildOfClass("Animator")if not anim then return end
+ task.spawn(function()S.unpackUGC()for k,aid in pairs(S.animIds)do local a=Instance.new("Animation")a.AnimationId=aid local ok,tr=pcall(function()return anim:LoadAnimation(a)end)if ok and tr then tr.Priority=Enum.AnimationPriority.Action tr.Looped=true S.tracks[k]=tr end end end)
 end
 
-function S.solveArmIK(uT,sh,el,tgt,uL,lL,pol)
- if not uT or not sh or not el then return end
- local bCF=uT.CFrame*sh.C0
- local lT,lP=bCF:PointToObjectSpace(tgt),bCF:VectorToObjectSpace(pol)
- local d=lT.Magnitude if d<0.05 then return end
- local cD=math.clamp(d,math.abs(uL-lL)+0.12,(uL+lL)*0.96)
- local cosS=math.clamp((uL^2+cD^2-lL^2)/(2*uL*cD),-1,1)
- local cosE=math.clamp((uL^2+lL^2-cD^2)/(2*uL*lL),-1,1)
- local dir=lT.Unit local rt=dir:Cross(lP)
- rt=rt.Magnitude<0.001 and V(1,0,0)or rt.Unit
- sh.Transform=CFrame.fromMatrix(V(),rt,-dir,-rt:Cross(dir).Unit)*A(math.acos(cosS),0,0)
- el.Transform=A(math.pi-math.acos(cosE),0,0)
+function S.startVault()
+ local c=L.Character local h,hr=c and c:FindFirstChildOfClass("Humanoid"),c and c:FindFirstChild("HumanoidRootPart")if not h or not hr or not S.grabbed or S.vaulting then return end
+ local rp=RaycastParams.new()rp.FilterType=Enum.RaycastFilterType.Exclude rp.FilterDescendantsInstances={c,S.rig,S.cursors.L,S.cursors.R}
+ local mid,fwd=(S.handL+S.handR)*0.5,Vector3.new(-S.smoothNorm.X,0,-S.smoothNorm.Z)fwd=fwd.Magnitude>0.01 and fwd.Unit or hr.CFrame.LookVector
+ local hit=W:Raycast(mid+Vector3.new(0,4.5,0)+fwd*2.4,Vector3.new(0,-6.5,0),rp)
+ local goal=hit and(hit.Position+Vector3.new(0,h.HipHeight+hr.Size.Y*0.5+0.6,0))or(mid+Vector3.new(0,h.HipHeight+1.8,0)+fwd*2.2)
+ S.vaulting,S.vaultT,S.vStart,S.vEnd=true,0,hr.CFrame,CFrame.lookAt(goal,goal+fwd,Vector3.yAxis)if S.pullBtn then S.pullBtn.Visible=false end
 end
 
--- Syncs 100% FE Joystick Arm Speed/Height + Dead-Weight Legs (Spider Mode kept untouched!)
-function S.syncReanim(realJ,hrCF,t,sway,tilt,onCeil,pR,pU,isVault,mvg,hL,hR,armSpd)
- local trk=S.tracks
- for _,tr in pairs(trk)do if not tr.IsPlaying then tr:Play(0.1)end end
- local isTurn,isSp=(S.turnT>0),(S.mode=="Spider")
- local function set(tr,wt,spd)
-  if tr then tr:AdjustWeight(wt,0.08)if spd~=nil then tr:AdjustSpeed(spd)end end
+function S.buildUI()
+ if S.gui then S.gui:Destroy()end local gui=Instance.new("ScreenGui",L:WaitForChild("PlayerGui"))gui.Name,gui.ResetOnSpawn="FEClimbHUD",false S.gui=gui
+ local function btn(pos,sz,txt,vis)local b=Instance.new("TextButton",gui)b.Size,b.Position,b.Visible,b.BackgroundColor3,b.BackgroundTransparency,b.TextColor3,b.Font,b.TextSize,b.Text=sz,pos,vis,Color3.fromRGB(24,24,30),0.15,Color3.new(1,1,1),Enum.Font.GothamBold,11,txt Instance.new("UICorner",b).CornerRadius=UDim.new(0,10)local st=Instance.new("UIStroke",b)st.Color,st.Thickness=Color3.fromRGB(160,160,175),1.4 return b end
+ S.lbl=Instance.new("TextLabel",gui)S.lbl.Size,S.lbl.Position,S.lbl.BackgroundColor3,S.lbl.BackgroundTransparency,S.lbl.TextColor3,S.lbl.Font,S.lbl.TextSize,S.lbl.Text=UDim2.new(0,255,0,26),UDim2.new(0.5,-127,0,10),Color3.fromRGB(20,20,25),0.2,Color3.fromRGB(225,225,235),Enum.Font.GothamBold,11,"🕹️ FE CLIMB: STANDBY"Instance.new("UICorner",S.lbl).CornerRadius=UDim.new(1,0)
+ S.modeBtn=btn(UDim2.new(0.5,-152,0,42),UDim2.new(0,162,0,28),"🕹️ MODE: STICKS",true)S.modeBtn.MouseButton1Click:Connect(function()S.mode=(S.mode=="Sticks"and"Direct")or(S.mode=="Direct"and"Auto")or(S.mode=="Auto"and"Spider")or"Sticks"S.modeBtn.Text="MODE: "..string.upper(S.mode)end)
+ S.vaultBtn=btn(UDim2.new(0.5,16,0,42),UDim2.new(0,136,0,28),"⚡ VAULT: ON",true)S.vaultBtn.MouseButton1Click:Connect(function()S.autoVault=not S.autoVault S.vaultBtn.Text=S.autoVault and"⚡ VAULT: ON"or"⚡ VAULT: OFF"end)
+ local function mkPad(tag,isL)
+  local f=Instance.new("Frame",gui)f.Size,f.BackgroundColor3,f.BackgroundTransparency,f.Active,f.Visible=UDim2.new(0,60,0,60),Color3.fromRGB(26,26,32),0.2,true,false Instance.new("UICorner",f).CornerRadius=UDim.new(1,0)
+  local t=Instance.new("TextLabel",f)t.Size,t.BackgroundTransparency,t.Text,t.TextColor3,t.Font,t.TextSize=UDim2.new(1,0,1,0),1,tag,Color3.new(1,1,1),Enum.Font.GothamBold,15
+  local tc,last=nil,Vector2.zero
+  f.InputBegan:Connect(function(i)if not tc and(i.UserInputType==Enum.UserInputType.Touch or i.UserInputType==Enum.UserInputType.MouseButton1)then tc,last=i,Vector2.new(i.Position.X,i.Position.Y)if isL then S.dragL=true else S.dragR=true end end end)
+  U.InputChanged:Connect(function(i)if i==tc then local cur=Vector2.new(i.Position.X,i.Position.Y)local d=cur-last last=cur if isL then S.dL=S.dL+d else S.dR=S.dR+d end end end)
+  U.InputEnded:Connect(function(i)if i==tc then tc=nil if isL then S.dragL,S.dL=false,Vector2.zero else S.dragR,S.dR=false,Vector2.zero end end end)return f
  end
-
- if isVault or isTurn then
-  set(trk.ClimbOver,1.0,isVault and 1.65 or 1.35)
-  set(trk.Climb,0.01,0)set(trk.SpiderRun,0.01,0)
-  set(trk.SpiderIdle,0.01,0)set(trk.Ceil,0.01,0)
- elseif isSp then
-  set(trk.ClimbOver,0.01,0)set(trk.Climb,0.01,0)set(trk.Ceil,0.01,0)
-  set(trk.SpiderRun,mvg and 1.0 or 0.05,mvg and 2.4 or 0)
-  set(trk.SpiderIdle,mvg and 0.05 or 1.0,1.0)
- else
-  -- FE Joystick / Direct Arm Scrubbing: everyone sees your arms move slow or fast!
-  local lrDiff=(S.posL-S.posR):Dot(pU)
-  local asym=math.clamp(math.abs(lrDiff)*0.35,0,0.45)
-  set(trk.ClimbOver,asym,0)
-  if trk.ClimbOver and trk.ClimbOver.Length>0 then
-   trk.ClimbOver.TimePosition=0.28*trk.ClimbOver.Length
-  end
-  set(trk.SpiderRun,0.01,0)
-  if trk.Climb then
-   trk.Climb:AdjustWeight(onCeil and 0.35 or(mvg and 1.0 or 0.45),0.08)
-   trk.Climb:AdjustSpeed(0)
-   if trk.Climb.Length>0 then
-    -- Maps L/R hand height offset & phase directly to FE climb keyframes!
-    local keyPos=(S.phase+(lrDiff*0.18))%1
-    trk.Climb.TimePosition=keyPos*trk.Climb.Length
-   end
-  end
-  set(trk.SpiderIdle,(not mvg and not onCeil and asym<0.1)and 0.55 or 0.01,0.8)
-  set(trk.Ceil,onCeil and 0.85 or 0.01,0.5)
+ S.padL,S.padR=mkPad("L",true),mkPad("R",false)
+ local function mkStk(pos,tag,col,isL)
+  local b=Instance.new("Frame",gui)b.Size,b.Position,b.BackgroundColor3,b.BackgroundTransparency,b.Active,b.Visible=UDim2.new(0,108,0,108),pos,Color3.fromRGB(20,20,26),0.25,true,false Instance.new("UICorner",b).CornerRadius=UDim.new(1,0)local bs=Instance.new("UIStroke",b)bs.Color,bs.Thickness=col,2
+  local k=Instance.new("Frame",b)k.Size,k.Position,k.BackgroundColor3,k.BackgroundTransparency=UDim2.new(0,44,0,44),UDim2.new(0.5,-22,0.5,-22),col,0.2 Instance.new("UICorner",k).CornerRadius=UDim.new(1,0)
+  local kt=Instance.new("TextLabel",k)kt.Size,kt.BackgroundTransparency,kt.Text,kt.TextColor3,kt.Font,kt.TextSize=UDim2.new(1,0,1,0),1,tag,Color3.new(1,1,1),Enum.Font.GothamBold,14
+  local tc=nil local function upd(i)local ctr=b.AbsolutePosition+b.AbsoluteSize*0.5 local v=Vector2.new(i.Position.X,i.Position.Y)-ctr if v.Magnitude>38 then v=v.Unit*38 end k.Position=UDim2.new(0.5,v.X-22,0.5,v.Y-22)local nm=Vector2.new(v.X/38,-v.Y/38)if isL then S.joyL=nm else S.joyR=nm end end
+  b.InputBegan:Connect(function(i)if not tc and(i.UserInputType==Enum.UserInputType.Touch or i.UserInputType==Enum.UserInputType.MouseButton1)then tc=i upd(i)end end)
+  U.InputChanged:Connect(function(i)if i==tc then upd(i)end end)
+  U.InputEnded:Connect(function(i)if i==tc then tc=nil k.Position=UDim2.new(0.5,-22,0.5,-22)if isL then S.joyL=Vector2.zero else S.joyR=Vector2.zero end end end)return b
  end
-
- if not S.rig then return end
- local rHr=S.rig:FindFirstChild("HumanoidRootPart")if rHr then rHr.CFrame=hrCF end
- local r=S.rigJ for _,m in pairs(r)do m.Transform=N()end
-
- if isSp then
-  for nm in pairs(r)do if realJ[nm]then realJ[nm].Transform=N()end end
-  return
- end
-
- local lGrav=hrCF:VectorToObjectSpace(V(0,-1,0))
- local hPitch=math.clamp(math.atan2(-lGrav.Z,-lGrav.Y)*0.55,-0.55,0.65)
- local hRoll=math.clamp((-sway*1.65)+math.sin(t*1.1)*0.04,-0.55,0.55)
- local oneYaw=(hL and not hR and -0.35)or(hR and not hL and 0.35)or 0
-
- if r.Root then r.Root.Transform=A(hPitch*0.35,oneYaw,hRoll*0.45)end
- if r.Waist then r.Waist.Transform=A(hPitch*0.65,-oneYaw*0.4,hRoll*0.75)end
- if r.Neck then r.Neck.Transform=A(onCeil and 0.85 or 0.65,-tilt*0.7-oneYaw*0.5,-hRoll*0.4)end
- if r.LeftHip then r.LeftHip.Transform=A(hPitch*0.85+math.sin(t*1.3)*0.04,0,-0.08+hRoll*0.95)end
- if r.LeftKnee then r.LeftKnee.Transform=A(-0.22-math.abs(hRoll)*0.35,0,0)end
- if r.LeftAnkle then r.LeftAnkle.Transform=A(-0.35,0,0)end
- if r.RightHip then r.RightHip.Transform=A(hPitch*0.95-math.sin(t*1.3)*0.04,0,0.08+hRoll*0.95)end
- if r.RightKnee then r.RightKnee.Transform=A(-0.28-math.abs(hRoll)*0.35,0,0)end
- if r.RightAnkle then r.RightAnkle.Transform=A(-0.38,0,0)end
-
- local uT=S.rig:FindFirstChild("UpperTorso")
- local lA=S.rig:FindFirstChild("LeftUpperArm")
- local lF=S.rig:FindFirstChild("LeftLowerArm")
- local rA=S.rig:FindFirstChild("RightUpperArm")
- local rF=S.rig:FindFirstChild("RightLowerArm")
- local pL=onCeil and(-pU*0.9-pR*0.2)or(-pU*0.95+S.wNorm*0.3-pR*0.2)
- local pR2=onCeil and(-pU*0.9+pR*0.2)or(-pU*0.95+S.wNorm*0.3+pR*0.2)
- if hL then S.solveArmIK(uT,r.LeftShoulder,r.LeftElbow,S.posL,lA and lA.Size.Y or 1.15,lF and lF.Size.Y or 1.15,pL)end
- if hR then S.solveArmIK(uT,r.RightShoulder,r.RightElbow,S.posR,rA and rA.Size.Y or 1.15,rF and rF.Size.Y or 1.15,pR2)end
- for nm,rM in pairs(r)do if realJ[nm]then realJ[nm].Transform=rM.Transform end end
-end
-
-function S.traceSurface(oldP,candP,mv,nrm,wR,rp)
- if mv.Magnitude<0.001 then return nil,nil,false end
- local mD=mv.Unit
- local inW=W:Raycast(oldP+nrm*0.45,mD*(mv.Magnitude+1.35),rp)
- if inW and inW.Normal:Dot(nrm)<0.72 then return inW.Position+inW.Normal*0.35,inW.Normal,true end
- if mD.Y>0.25 then
-  local cH=W:Raycast(candP-V(0,0.4,0)+nrm*0.4,V(0,2.6,0),rp)
-  if cH and cH.Normal.Y<-0.5 then return cH.Position+cH.Normal*0.35,cH.Normal,true end
- end
- local dH=W:Raycast(candP+nrm*1.6,-nrm*3.8,rp)
- if dH then return dH.Position+dH.Normal*0.35,dH.Normal,dH.Normal:Dot(nrm)<0.72 end
- local sD=mD:Dot(wR)
- if math.abs(sD)>0.08 and nrm.Y>-0.5 then
-  local sG=sD>0 and 1 or -1
-  for _,depth in ipairs({0.8,1.5,2.2})do
-   local cR=W:Raycast(candP-nrm*depth+wR*(sG*1.85),-wR*(sG*3.6),rp)
-   if cR then return cR.Position+cR.Normal*0.35,cR.Normal,true end
-  end
- end
- if nrm.Y>-0.5 then
-  local tH=W:Raycast(candP+V(0,1.4,0)-nrm*0.45,V(0,-2.6,0),rp)
-  if tH then return tH.Position+V(0,0.28,0)+nrm*0.28,nrm,false end
- end
- return nil,nil,false
+ S.stickL,S.stickR=mkStk(UDim2.new(0,26,1,-140),"L",Color3.fromRGB(90,210,255),true),mkStk(UDim2.new(1,-134,1,-140),"R",Color3.fromRGB(255,115,115),false)
+ S.pullBtn=btn(UDim2.new(1,-125,1,-255),UDim2.new(0,105,0,38),"⬆️ PULL UP",false)S.pullBtn.MouseButton1Click:Connect(S.startVault)
+ S.jmpBtn=btn(UDim2.new(1,-125,1,-210),UDim2.new(0,105,0,38),"⬆️ JUMP",true)
+ S.jmpBtn.MouseButton1Click:Connect(function()local c=L.Character local h,hr=c and c:FindFirstChildOfClass("Humanoid"),c and c:FindFirstChild("HumanoidRootPart")if not h or not hr then return end if S.grabbed and not S.vaulting then local kd=S.smoothNorm.Y<-0.6 and Vector3.new(0,-18,0)or S.smoothNorm*34+Vector3.new(0,48,0)S.resetState(c)h:SetStateEnabled(12,false)hr.AssemblyLinearVelocity=kd elseif not S.grabbed then h.Jump=true end end)
 end
 print("Part 2 Loaded!")
